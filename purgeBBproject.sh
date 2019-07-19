@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# http://lac-ci-server:7990/rest/api/1.0/projects/CB/repos
+
 username=
 password=
 
