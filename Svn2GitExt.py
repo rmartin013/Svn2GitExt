@@ -214,8 +214,6 @@ if __name__ == "__main__":
 	if password is None:
 		password = getpass.getpass("Password for %s: " % (username))
 
-	print "[%s] / [%s]" % (username, password)
-	pause()
 	if args.command == "create":
 		RootProjectName = os.path.basename(args.directory)
 		LOCAL_GIT_REPO_BASE = os.path.dirname(args.directory)
