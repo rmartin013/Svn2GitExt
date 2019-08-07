@@ -137,7 +137,7 @@ for target in `get_external $SVN_REPO`; do
 			url="$(dirname $url)"
 		fi
 
-		# Remove the absolute path related to the SVN local checkout
+		# Append target path without the absolute path related to the SVN local checkout
 		directory="${target#*$(realpath $SVN_REPO)}/$directory"
 
 		# Remove "begining/./end" if any 
