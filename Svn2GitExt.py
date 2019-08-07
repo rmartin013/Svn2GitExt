@@ -168,12 +168,12 @@ def getSvnExternal(target, externals):
 		chunks = string.split(line.strip(), ' ')
 		lastIdx = len(chunks)-1
 		for i in range(lastIdx):
-			if string.find(chunks[i], "http") != -1:
+			if "http" in chunks[i]:
 				url = string.split(chunks[i],'@')
 				if len(url) >= 2:
 					Ext.setRevision(url[1])
 				Ext.setUrl(url[0])
-			elif string.find(chunks[i], "-r") != -1:
+			elif "-r" in chunks[i]:
 				Ext.setRevision(chunks[i+1])
 		Ext.setDirectory(chunks[lastIdx])
 		if Ext.url is not None:
@@ -283,14 +283,14 @@ if __name__ == "__main__":
 				ProjectName = line[i+len(GitDirectoryPresentation):].strip()
 				print "ProjectName: " + ProjectName
 			while line:
-				if " * " in line:
+				if ' * ' in line:
 					prefix = line.split(' ')[2]
 					subtree = line.split(' ')[4]
-					if "-rBase:" in line:
+					if '-rBASE:' in line:
 						print "Found subtree %s related at %s to svn:external with fixed revision -> discard it for update" % (subtree, prefix)
-					externals.append([prefix,subtree])
-					print "Prefix: " + prefix
-					print "Subtree: " + subtree
+					else:
+						externals.append([prefix,subtree])
+						print "Found subtree %s related at %s to svn:external" % (subtree, prefix)
 				line = f.readline()
 		f.close()
 		externals.sort(key=itemgetter(0))
