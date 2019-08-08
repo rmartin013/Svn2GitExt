@@ -10,6 +10,7 @@ from datetime import datetime
 import tempfile
 import xml.etree.ElementTree as ET
 import getpass
+import shlex
 
 try:
 	import credentials
@@ -47,23 +48,33 @@ def getSubversionUrl(svn_work_dir):
 			return chunk[1].strip()
 	return None
 
-def callCommand(cmd, trace=True):
+def callCommand(cmd, trace = True, ret = False):
 	if trace == True:
 		print "==================="
 		print cmd
 		print "==================="
-	error = os.system(cmd)
-	if error != 0:
-		print "Error %d happenned in %s, press [Enter] key to continue..." % (error, os.getcwd())
-		sys.stdin.read(1)
+	if ret == True:
+		try:
+			return subprocess.check_output(shlex.split(cmd))
+		except subprocess.CalledProcessError, e:
+			print "Error %d happenned in %s, press [Enter] key to continue..." % (e.returncode, os.getcwd())
+			sys.stdin.read(1)
+			return e.output
+	else:
+		error = os.system(cmd)
+		if error != 0:
+			print "Error %d happenned in %s, press [Enter] key to continue..." % (error, os.getcwd())
+			sys.stdin.read(1)
 
 def gitSubtreeCmd(cmd, prefix, subtree):
 	now = datetime.now()
 	if cmd == "push":
 		branch = "integration"
+		direction = "to"
 	else:
 		branch = "master"
-	callCommand("git subtree %s -P %s %s %s -m '%s changes from SVN repo (%s)'" % (cmd, prefix, subtree, branch, cmd, now.strftime("%d/%m/%Y %H:%M:%S")))
+		direction = "from"
+	return callCommand("git subtree %s --prefix=%s %s %s -m '%s changes %s SVN repo on (%s)'" % (cmd, prefix, subtree, branch, cmd, direction, now.strftime("%d/%m/%Y %H:%M:%S")), True, True)
 
 def getBitbucketCloneUrl():
 	with tempfile.NamedTemporaryFile() as fp:
@@ -307,7 +318,8 @@ if __name__ == "__main__":
 		for i in range(len(externals)):
 			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
-			callCommand("git svn rebase -A %s" % (gAuthorsFile))
+			if "Current branch master is up to date." in callCommand("git svn rebase -A %s" % (gAuthorsFile), True, True):
+				externals[i].svnUptodate = True
 			callCommand("git pull")
 			callCommand("git push")
 			
@@ -316,7 +328,10 @@ if __name__ == "__main__":
 		pause()
 		
 		for i in range(len(externals)):
-			gitSubtreeCmd("pull", externals[i].prefix, externals[i].subtree)
+			if externals[i].svnUptodate == True:
+				print "Skip git subtree pull on prefix %s / subtree %s as it was detected uptodate from SVN side" % (externals[i].prefix, externals[i].subtree)
+			else:
+				gitSubtreeCmd("pull", externals[i].prefix, externals[i].subtree)
 		callCommand("git push")
 
 		for i in range(len(externals)):
