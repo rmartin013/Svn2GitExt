@@ -7,7 +7,6 @@ import argparse
 import subprocess
 import string
 from datetime import datetime
-from operator import itemgetter
 import tempfile
 import xml.etree.ElementTree as ET
 import getpass
@@ -147,6 +146,14 @@ class SvnExternal:
 	def __repr__(self):
 		return repr((self.url, self.directory, self.revision))
 
+class GitSubtree:
+	def __init__(self, prefix = None, subtree = None, svnUptodate = False):
+		self.prefix = prefix
+		self.subtree = subtree
+		self.svnUptodate = svnUptodate
+	def __repr__(self):
+		return repr((self.prefix, self.subtree, self.svnUptodate))
+
 def completeSvnExtDirectory(target, ext):
 	# Append target path to the directory path
 	complete = os.path.relpath(os.path.join(target, ext.directory), args.svn)
@@ -284,20 +291,21 @@ if __name__ == "__main__":
 				print "ProjectName: " + ProjectName
 			while line:
 				if ' * ' in line:
-					prefix = line.split(' ')[2]
-					subtree = line.split(' ')[4]
+					sub = GitSubtree()
+					sub.prefix = line.split(' ')[2]
+					sub.subtree = line.split(' ')[4]
 					if '-rBASE:' in line:
-						print "Found subtree %s related at %s to svn:external with fixed revision -> discard it for update" % (subtree, prefix)
+						print "Found subtree %s related at %s to svn:external with fixed revision -> discard it for update" % (sub.subtree, sub.prefix)
 					else:
-						externals.append([prefix,subtree])
-						print "Found subtree %s related at %s to svn:external" % (subtree, prefix)
+						externals.append(sub)
+						print "Found subtree %s related at %s to svn:external" % (sub.subtree, sub.prefix)
 				line = f.readline()
 		f.close()
-		externals.sort(key=itemgetter(0))
+		externals.sort(key=lambda GitSubtree: GitSubtree.prefix)
 		print(externals)
 		
 		for i in range(len(externals)):
-			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i][1]))
+			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
 			callCommand("git svn rebase -A %s" % (gAuthorsFile))
 			callCommand("git pull")
@@ -308,19 +316,19 @@ if __name__ == "__main__":
 		pause()
 		
 		for i in range(len(externals)):
-			gitSubtreeCmd("pull", externals[i][0], externals[i][1])
+			gitSubtreeCmd("pull", externals[i].prefix, externals[i].subtree)
 		callCommand("git push")
 
 		for i in range(len(externals)):
-			gitSubtreeCmd("push", externals[i][0], externals[i][1])
-			askConfirmation("Please perform manually the merge between integration and master from %s, then " % (externals[i][1]))
+			gitSubtreeCmd("push", externals[i].prefix, externals[i].subtree)
+			askConfirmation("Please perform manually the merge between integration and master from %s, then " % (externals[i].subtree))
 			# Remove remaining integration branch (if still exists)
-			callCommand("git push %s --delete integration" % (externals[i][1]))
+			callCommand("git push %s --delete integration" % (externals[i].subtree))
 
 		askConfirmation("Next step is to push your change to SVN repositories...\n" + \
 		"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, ")
 		for i in range(len(externals)):
-			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i][1]))
+			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
 			callCommand("git checkout master")
 			callCommand("git branch -d integration")
