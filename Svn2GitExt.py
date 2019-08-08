@@ -285,6 +285,9 @@ if __name__ == "__main__":
 		# Push to server
 		callCommand("git push -u origin --all")
 
+		print "Final check, brutal diff from SVN local workdir (must be up to date to be accurate) to local GIT repo"
+		callCommand("diff -r -q -x dl -x '.gitignore' -x '.svn' -x '.git' %s %s" % (os.path.join(args.directory, gRootRepositoryName), args.svn))
+
 	elif args.command == "update":
 		#print (args.directory)
 		readme = os.path.join(args.directory, "README")
