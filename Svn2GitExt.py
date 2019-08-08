@@ -20,9 +20,9 @@ except:
 	username = None
 	password = None
 
-GitDirectoryPresentation = "Root GIT repository of project "
-ROOT_REPOSITORY_NAME="root"
-AUTHORS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "authors.txt")
+gGitDirectoryPresentation = "Root GIT repository of project "
+gRootRepositoryName="root"
+gAuthorsFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "authors.txt")
 
 def pause():
 	print "Press [Enter] key to continue..."
@@ -68,21 +68,21 @@ def gitSubtreeCmd(cmd, prefix, subtree):
 
 def getBitbucketCloneUrl():
 	with tempfile.NamedTemporaryFile() as fp:
-		callCommand("curl -s -X GET -u '%s':'%s' %s/%s > %s" % (username, password, REMOTE_GIT_SERVER_URL, ext_name, fp.name), False)
+		callCommand("curl -s -X GET -u '%s':'%s' %s/%s > %s" % (username, password, gRemoteGitServerUrl, ext_name, fp.name), False)
 		return subprocess.check_output(["jq", "-r", '.links | .clone[] | select(.name=="ssh") | .href', fp.name]).strip()
 
 def purgeBitbucketProject():
 	with tempfile.NamedTemporaryFile() as fp:
-		callCommand("curl -s -X GET -u '%s':'%s' %s > %s" % (username, password, REMOTE_GIT_SERVER_URL, fp.name), False)
+		callCommand("curl -s -X GET -u '%s':'%s' %s > %s" % (username, password, gRemoteGitServerUrl, fp.name), False)
 		for repo in subprocess.check_output(["jq", "-r", '.values[] | .slug', fp.name]).strip().split('\n'):
-			callCommand("curl -v -X DELETE -u '%s':'%s' %s/%s" %(username, password, REMOTE_GIT_SERVER_URL, repo), False)
+			callCommand("curl -v -X DELETE -u '%s':'%s' %s/%s" %(username, password, gRemoteGitServerUrl, repo), False)
 
 def createGitSvnSubtree(text):
-	ext_dir = os.path.join(LOCAL_GIT_REPO_BASE, "%s-%s" %(RootProjectName, ext_name))
+	ext_dir = os.path.join(gLocalGitRepoBase, "%s-%s" %(gRootProjectName, ext_name))
 	mkpdir(ext_dir)
 
 	# clone in local git repository using git svn
-	callCommand("git svn clone -A %s --preserve-empty-dirs%s %s %s" % (AUTHORS_FILE, rev_opt, url, ext_dir))
+	callCommand("git svn clone -A %s --preserve-empty-dirs%s %s %s" % (gAuthorsFile, rev_opt, url, ext_dir))
 
 	# Git push to a GIT server remote
 	os.chdir(ext_dir)
@@ -91,7 +91,7 @@ def createGitSvnSubtree(text):
 	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory + '"}\''
 
 	# Create Bitbucket repository directly on server
-	callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, REMOTE_GIT_SERVER_URL, dir_option), True)
+	callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, gRemoteGitServerUrl, dir_option), True)
 	clone_url = getBitbucketCloneUrl()
 	callCommand("git remote add origin " + clone_url)
 	callCommand("git push -u origin --all")
@@ -152,7 +152,7 @@ def completeSvnExtDirectory(target, ext):
 	complete = os.path.relpath(os.path.join(target, ext.directory), args.svn)
 
 	# Append again Root repository name
-	complete = os.path.join(ROOT_REPOSITORY_NAME, complete)
+	complete = os.path.join(gRootRepositoryName, complete)
 	
 	# Special check for ModuleEncrypt.py (svn externals directly on a file)
 	if os.path.isfile(os.path.join(target, ext.directory)):
@@ -215,10 +215,10 @@ if __name__ == "__main__":
 		password = getpass.getpass("Password for %s: " % (username))
 
 	if args.command == "create":
-		RootProjectName = os.path.basename(args.directory)
-		LOCAL_GIT_REPO_BASE = os.path.dirname(args.directory)
+		gRootProjectName = os.path.basename(args.directory)
+		gLocalGitRepoBase = os.path.dirname(args.directory)
 		ext_dir = args.directory
-		REMOTE_GIT_SERVER_URL = args.bitbucket.strip('/')
+		gRemoteGitServerUrl = args.bitbucket.strip('/')
 
 		# Create parent project
 		url=getSubversionUrl(args.svn)
@@ -226,26 +226,26 @@ if __name__ == "__main__":
 		os.chdir(ext_dir)
 		callCommand("git init")
 		with open("README", 'w') as readme:
-			readme.write(GitDirectoryPresentation + RootProjectName + '\n')
-			readme.write('In this repository, the main SVN project "%s" is cloned in the git directory "%s". ' % (url, ROOT_REPOSITORY_NAME))
+			readme.write(gGitDirectoryPresentation + gRootProjectName + '\n')
+			readme.write('In this repository, the main SVN project "%s" is cloned in the git directory "%s". ' % (url, gRootRepositoryName))
 			readme.write('Inside of it, there is a git subtree (check for the online definition)' + \
 			' for each original svn:external definition of the main project.\n' + \
 			'Here is the list of git subtree associations:\n')
 		callCommand("git add README") 
-		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (RootProjectName, url))
+		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (gRootProjectName, url))
 
 		# clone in local git repository using git svn
-		ext_name = ROOT_REPOSITORY_NAME
+		ext_name = gRootRepositoryName
 		directory = ext_name
 		rev_opt = ""
 		createGitSvnSubtree("SVN root directory")
 
-		dir_option = '\'{"name": "' + RootProjectName + '", "scm": "git", "is_private": "false", "fork_policy": "no_public_forks", "description": "' + \
-		'Main GIT project for ' + RootProjectName + ', should mirror (svn - ' + url + ')"}\''
+		dir_option = '\'{"name": "' + gRootProjectName + '", "scm": "git", "is_private": "false", "fork_policy": "no_public_forks", "description": "' + \
+		'Main GIT project for ' + gRootProjectName + ', should mirror (svn - ' + url + ')"}\''
 
 		# Create Bitbucket repository directly on server
-		callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, REMOTE_GIT_SERVER_URL, dir_option), False)
-		ext_name = RootProjectName
+		callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, gRemoteGitServerUrl, dir_option), False)
+		ext_name = gRootProjectName
 		clone_url = getBitbucketCloneUrl()
 
 		callCommand("git remote add origin " + clone_url)
@@ -278,9 +278,9 @@ if __name__ == "__main__":
 		externals = []
 		line = f.readline()
 		if line:
-			i = line.find(GitDirectoryPresentation)
+			i = line.find(gGitDirectoryPresentation)
 			if i != -1:
-				ProjectName = line[i+len(GitDirectoryPresentation):].strip()
+				ProjectName = line[i+len(gGitDirectoryPresentation):].strip()
 				print "ProjectName: " + ProjectName
 			while line:
 				if ' * ' in line:
@@ -299,7 +299,7 @@ if __name__ == "__main__":
 		for i in range(len(externals)):
 			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i][1]))
 			print "\n-> Working in %s" % (os.getcwd())
-			callCommand("git svn rebase -A %s" % (AUTHORS_FILE))
+			callCommand("git svn rebase -A %s" % (gAuthorsFile))
 			callCommand("git pull")
 			callCommand("git push")
 			
@@ -325,10 +325,10 @@ if __name__ == "__main__":
 			callCommand("git checkout master")
 			callCommand("git branch -d integration")
 			callCommand("git pull")
-			callCommand("git svn dcommit -A %s" % (AUTHORS_FILE))
+			callCommand("git svn dcommit -A %s" % (gAuthorsFile))
 
 	elif args.command == "purge":
-		REMOTE_GIT_SERVER_URL = args.bitbucket.strip('/')
+		gRemoteGitServerUrl = args.bitbucket.strip('/')
 		purgeBitbucketProject()
 	else:
 		print("Unknown command")
