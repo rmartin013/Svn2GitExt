@@ -156,16 +156,10 @@ def getSvnExternalsTargetList(path):
 		return targets
 
 class SvnExternal:
-	def setUrl(self, url):
-		self.url = url
-	def setDirectory(self, directory):
-		self.directory = directory
-	def setRevision(self, revision):
-		self.revision = revision
 	def __init__(self, url = None, directory = None, revision = None):
-		self.setUrl(url)
-		self.setDirectory(directory)
-		self.setRevision(revision)
+		self.url = url
+		self.directory = directory
+		self.revision = revision
 	def __repr__(self):
 		return repr((self.url, self.directory, self.revision))
 
@@ -187,9 +181,9 @@ def completeSvnExtDirectory(target, ext):
 	# Special check for ModuleEncrypt.py (svn externals directly on a file)
 	if os.path.isfile(os.path.join(target, ext.directory)):
 		complete = os.path.dirname(complete)
-		ext.setUrl(os.path.dirname(ext.url))
+		ext.url = os.path.dirname(ext.url)
 
-	ext.setDirectory(complete)
+	ext.directory = complete
 
 def getSvnExternal(target, externals):
 	app = subprocess.Popen(["svn", "pg", "svn:externals", target], stdout = subprocess.PIPE, universal_newlines = True)
@@ -201,11 +195,11 @@ def getSvnExternal(target, externals):
 			if "http" in chunks[i]:
 				url = string.split(chunks[i],'@')
 				if len(url) >= 2:
-					Ext.setRevision(url[1])
-				Ext.setUrl(url[0])
+					Ext.revision = url[1]
+				Ext.url = url[0]
 			elif "-r" in chunks[i]:
-				Ext.setRevision(chunks[i+1])
-		Ext.setDirectory(chunks[lastIdx])
+				Ext.revision = chunks[i+1]
+		Ext.directory = chunks[lastIdx]
 		if Ext.url is not None:
 			completeSvnExtDirectory(target, Ext)
 			externals.append(Ext)
@@ -354,6 +348,7 @@ if __name__ == "__main__":
 			askConfirmation("Please perform manually the merge between integration and master from %s, then " % (externals[i].subtree))
 			# Remove remaining integration branch (if still exists)
 			callCommand("git push %s --delete integration" % (externals[i].subtree))
+			os.system("git branch -d integration")
 
 		askConfirmation("Next step is to push your change to SVN repositories...\n" + \
 		"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, ")
@@ -361,7 +356,6 @@ if __name__ == "__main__":
 			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
 			callCommand("git checkout master")
-			callCommand("git branch -d integration")
 			callCommand("git pull")
 			callCommand("git svn dcommit -A %s" % (gAuthorsFile))
 
