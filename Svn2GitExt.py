@@ -48,11 +48,14 @@ def getSubversionUrl(svn_work_dir):
 			return chunk[1].strip()
 	return None
 
+def traceFn(cmd):
+	print "==================="
+	print cmd
+	print "==================="
+
 def callCommand(cmd, trace = True, ret = False):
 	if trace == True:
-		print "==================="
-		print cmd
-		print "==================="
+		traceFn(cmd)
 	if ret == True:
 		try:
 			return subprocess.check_output(shlex.split(cmd))
@@ -87,6 +90,10 @@ def purgeBitbucketProject():
 		for repo in subprocess.check_output(["jq", "-r", '.values[] | .slug', fp.name]).strip().split('\n'):
 			callCommand("curl -v -X DELETE -u '%s':'%s' %s/%s" %(username, password, gRemoteGitServerUrl, repo), False)
 
+def getFirstGitRevision():
+	app = subprocess.Popen(["git", "rev-list", "--max-parents=0", "HEAD"], stdout = subprocess.PIPE, universal_newlines = True)
+	return app.stdout.readlines()[-1].strip()
+
 def createGitSvnSubtree(text):
 	ext_dir = os.path.join(gLocalGitRepoBase, "%s-%s" %(gRootProjectName, ext_name))
 	mkpdir(ext_dir)
@@ -109,11 +116,16 @@ def createGitSvnSubtree(text):
 	# Add git-subtree link in global project
 	os.chdir(args.directory)
 	callCommand("git remote add %s %s" % (ext_name, clone_url))
-	#callCommand("git checkout -b b-%s $(git rev-list --max-parents=0 HEAD | tail -n 1)" % (ext_name))
-	callCommand('git subtree add --prefix=%s %s master' % (directory, ext_name))
-	#callCommand("git checkout master")
-	#callCommand('git merge "b-%s" -m "Integrated %s %s as a git subtree at %s' % (ext_name, text, url, directory))
-	#callCommand('git branch -D "b-%s"' % (ext_name))
+	createSubtreeCmd = 'git subtree add --prefix=%s %s master' % (directory, ext_name)
+	traceFn(createSubtreeCmd)
+	if os.system(createSubtreeCmd) == 256:
+		# This error happens when the subtree creation is impossible because the prefix already exists.
+		# The only effective workaround I know is to do the subtree creation in a branch created before the initial prefix creation, then merge it.
+		callCommand("git checkout -b b-%s %s" % (ext_name, getFirstGitRevision()))
+		callCommand(createSubtreeCmd)
+		callCommand("git checkout master")
+		callCommand('git merge "b-%s" -m "Integrated %s %s as a git subtree at %s"' % (ext_name, text, url, directory))
+		callCommand('git branch -D "b-%s"' % (ext_name))
 	with open("README", 'a') as readme:
 		readme.write(" * %s : %s (svn - %s%s)\n" % (directory, ext_name, url, rev_opt))
 	callCommand('git commit -am "Updated README with git subtree %s association"' % (directory))
