@@ -1,6 +1,9 @@
 #! /usr/bin/python
 # coding: utf-8
 
+# depends on packages:
+# git, subversion, git-svn, jq, curl
+
 import os
 import sys
 import argparse
@@ -79,9 +82,9 @@ def gitSubtreeCmd(cmd, prefix, subtree):
 		direction = "from"
 	return callCommand("git subtree %s --prefix=%s %s %s -m '%s changes %s SVN repo on (%s)'" % (cmd, prefix, subtree, branch, cmd, direction, now.strftime("%d/%m/%Y %H:%M:%S")), True, True)
 
-def getBitbucketCloneUrl():
+def getBitbucketCloneUrl(name):
 	with tempfile.NamedTemporaryFile() as fp:
-		callCommand("curl -s -X GET -u '%s':'%s' %s/%s > %s" % (username, password, gRemoteGitServerUrl, ext_name, fp.name), False)
+		callCommand("curl -s -X GET -u '%s':'%s' %s/%s > %s" % (username, password, gRemoteGitServerUrl, name, fp.name), False)
 		return subprocess.check_output(["jq", "-r", '.links | .clone[] | select(.name=="ssh") | .href', fp.name]).strip()
 
 def purgeBitbucketProject():
@@ -104,12 +107,9 @@ def createGitSvnSubtree(text):
 	# Git push to a GIT server remote
 	os.chdir(ext_dir)
 	# http://bitbucket02:7990/rest/api/1.0/projects/CON/repos/
-	dir_option = '\'{"name": "' + ext_name + '", "scm": "git", "is_private": "false", "fork_policy": "no_public_forks", "description": "' + \
-	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory + '"}\''
-
-	# Create Bitbucket repository directly on server
-	callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, gRemoteGitServerUrl, dir_option), True)
-	clone_url = getBitbucketCloneUrl()
+	clone_url = createGitRemote(ext_name, \
+	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory)
+	
 	callCommand("git remote add origin " + clone_url)
 	callCommand("git push -u origin --all")
 
@@ -203,6 +203,14 @@ def getSvnExternal(target, externals):
 		if Ext.url is not None:
 			completeSvnExtDirectory(target, Ext)
 			externals.append(Ext)
+			
+def createGitRemote(name, description):
+	dir_option = '\'{"name": "' + name + '", "scm": "git", "is_private": "false", "fork_policy": "no_public_forks", "description": "' + \
+		description + '"}\''
+
+	# Create Bitbucket repository directly on server
+	callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, gRemoteGitServerUrl, dir_option), False)
+	return getBitbucketCloneUrl(name)
 
 def getSvnExternalsList():
 	target_list = getSvnExternalsTargetList(args.svn)
@@ -269,14 +277,7 @@ if __name__ == "__main__":
 		rev_opt = ""
 		createGitSvnSubtree("SVN root directory")
 
-		dir_option = '\'{"name": "' + gRootProjectName + '", "scm": "git", "is_private": "false", "fork_policy": "no_public_forks", "description": "' + \
-		'Main GIT project for ' + gRootProjectName + ', should mirror (svn - ' + url + ')"}\''
-
-		# Create Bitbucket repository directly on server
-		callCommand("curl -v -u '%s':'%s' -H \"Content-Type: application/json\" %s -d %s" % (username, password, gRemoteGitServerUrl, dir_option), False)
-		ext_name = gRootProjectName
-		clone_url = getBitbucketCloneUrl()
-
+		clone_url = createGitRemote(gRootProjectName, 'Main GIT project for ' + gRootProjectName + ', should mirror (svn - ' + url + ')')
 		callCommand("git remote add origin " + clone_url)
 
 		# Create git subtree projects
