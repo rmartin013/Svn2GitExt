@@ -215,6 +215,11 @@ def getSvnExternalsList():
 	externals.sort(key=lambda SvnExternal: SvnExternal.directory)
 	return externals
 
+def getGitRestApi(gitUrl):
+	from urlparse import urlparse as urlp
+	parsed = urlp(gitUrl.strip('/'))
+	return parsed.scheme + '://' + parsed.netloc + '/rest/api/1.0' + parsed.path + '/repos'
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Bi-directionnal utility for synchronising SVN archived project using many svn:externals links with GIT repository using other repositories with git subtree')
 	parser.add_argument('command', choices=["create","update","purge"], help='Command among "create", update", "purge"')
@@ -242,7 +247,7 @@ if __name__ == "__main__":
 		gRootProjectName = os.path.basename(args.directory)
 		gLocalGitRepoBase = os.path.dirname(args.directory)
 		ext_dir = args.directory
-		gRemoteGitServerUrl = args.bitbucket.strip('/')
+		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
 
 		# Create parent project
 		url=getSubversionUrl(args.svn)
@@ -360,7 +365,7 @@ if __name__ == "__main__":
 			callCommand("git svn dcommit -A %s" % (gAuthorsFile))
 
 	elif args.command == "purge":
-		gRemoteGitServerUrl = args.bitbucket.strip('/')
+		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
 		purgeBitbucketProject()
 	else:
 		print("Unknown command")
