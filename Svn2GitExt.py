@@ -363,7 +363,7 @@ if __name__ == "__main__":
 			print "\n-> Working in %s" % (os.getcwd())
 			callCommand("git checkout master")
 			callCommand("git pull")
-			callCommand("git svn dcommit -A %s" % (gAuthorsFile))
+			callCommand("git svn dcommit -A %s --add-author-from --use-log-author" % (gAuthorsFile))
 
 	elif args.command == "purge":
 		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
