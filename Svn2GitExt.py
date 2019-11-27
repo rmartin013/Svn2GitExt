@@ -43,13 +43,17 @@ def mkpdir(path):
 	except:
 		pass
 
-def getSubversionUrl(svn_work_dir):
-	app = subprocess.Popen(["svn", "info", svn_work_dir], stdout = subprocess.PIPE, universal_newlines = True)
-	for line in app.stdout:
-		chunk = string.split(line, ": ")
-		if chunk[0] == "URL":
-			return chunk[1].strip()
-	return None
+class SvnInfo:
+	def __init__(self, SvnWorkDir):
+		app = subprocess.Popen(["svn", "info", SvnWorkDir], stdout = subprocess.PIPE, universal_newlines = True)
+		for line in app.stdout:
+			chunk = string.split(line, ": ")
+			if chunk[0] == "URL":
+				self.ProjectUrl = chunk[1].strip()
+			elif chunk[0] == "Repository Root":
+				self.RepoUrl = chunk[1].strip()
+	def __repr__(self):
+		return repr((self.ProjectUrl, self.RepoUrl))
 
 def traceFn(cmd):
 	print "==================="
@@ -191,11 +195,14 @@ def getSvnExternal(target, externals):
 		chunks = string.split(line.strip(), ' ')
 		lastIdx = len(chunks)-1
 		for i in range(lastIdx):
-			if "http" in chunks[i]:
+			if "http" in chunks[i] or '^/' in chunks[i]:
 				url = string.split(chunks[i],'@')
 				if len(url) >= 2:
 					Ext.revision = url[1]
-				Ext.url = url[0]
+				if "^/" in chunks[i]:
+					Ext.url = SvnUrls.RepoUrl + url[0].strip('^')
+				else:
+					Ext.url = url[0]
 			elif "-r" in chunks[i]:
 				Ext.revision = chunks[i+1]
 		Ext.directory = chunks[lastIdx]
@@ -257,7 +264,8 @@ if __name__ == "__main__":
 		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
 
 		# Create parent project
-		url=getSubversionUrl(args.svn)
+		SvnUrls=SvnInfo(args.svn)
+		url=SvnUrls.ProjectUrl
 		mkpdir(ext_dir)
 		os.chdir(ext_dir)
 		callCommand("git init")
