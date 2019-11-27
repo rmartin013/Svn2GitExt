@@ -308,9 +308,14 @@ if __name__ == "__main__":
 		callCommand("diff -r -q -x dl -x '.gitignore' -x '.svn' -x '.git' %s %s" % (os.path.join(args.directory, gRootRepositoryName), args.svn))
 
 	elif args.command == "update":
-		#print (args.directory)
-		readme = os.path.join(args.directory, "README")
-		f = open(readme, 'r')
+		try:
+			readme = os.path.join(args.directory, "README")
+		except:
+			print "You must provide a valid GIT --directory option: [%s]" % (args.directory)
+		try:
+			f = open(readme, 'r')
+		except:
+			print "Unable to open %s" %(readme)
 		os.chdir(args.directory)
 		print "\n-> Working in %s" % (os.getcwd())
 		callCommand("git checkout master")
