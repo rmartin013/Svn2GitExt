@@ -237,12 +237,13 @@ def getGitRestApi(gitUrl):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Bi-directionnal utility for synchronising SVN archived project using many svn:externals links with GIT repository using other repositories with git subtree')
 	parser.add_argument('command', choices=["create","update","purge"], help='Command among "create", update", "purge"')
-	parser.add_argument('-d','--directory', help='Path to the local GIT directory / Mandatory')
+	parser.add_argument('-d','--directory', help='Path to the local GIT directory / Mandatory for create & update')
 	parser.add_argument('-s','--svn', help='Path to the local SVN directory / Mandatory for create')
-	parser.add_argument('-b','--bitbucket', help='Bitbucket (GIT) project URL / Mandatory for create')
-	parser.add_argument('-i','--iterative', help='Pause after each critical operation')
+	parser.add_argument('-b','--bitbucket', help='Bitbucket (GIT) project URL / Mandatory for create & purge')
+	parser.add_argument('-i','--iterative', help='Pause after each critical operation (only for create)')
 	parser.add_argument('-u','--username', help='Git repository username')
 	parser.add_argument('-p','--password', help='Git repository password for [username]')
+	parser.add_argument('-r','--root', action="store_true", help='Update root subtree, default is no (only for update)')
 	args = parser.parse_args()
 
 	# If user passed credentials by arguments, overwrite file credentials if exist
@@ -270,7 +271,7 @@ if __name__ == "__main__":
 		os.chdir(ext_dir)
 		callCommand("git init")
 		with open("README", 'w') as readme:
-			readme.write(gGitDirectoryPresentation + gProjectName + '\n')
+			readme.write(gGitDirectoryPresentation + gProjectName + '\n\n')
 			readme.write('In this repository, the main SVN project "%s" is cloned in the git directory "%s". ' % (url, gRootRepositoryName))
 			readme.write('Inside of it, there is a git subtree (check for the online definition)' + \
 			' for each original svn:external definition of the main project.\n' + \
@@ -362,6 +363,9 @@ if __name__ == "__main__":
 		callCommand("git push")
 
 		for i in range(len(externals)):
+			# Default: Always skip the root subtree except if asked by option --root
+			if externals[i].prefix == gRootRepositoryName and not args.root:
+				continue
 			gitSubtreeCmd("push", externals[i].prefix, externals[i].subtree)
 			diffs = callCommand("git diff --compact-summary %s/integration %s/master" % (externals[i].subtree, externals[i].subtree), True, True)
 			if(diffs != ""):
