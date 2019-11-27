@@ -363,10 +363,13 @@ if __name__ == "__main__":
 
 		for i in range(len(externals)):
 			gitSubtreeCmd("push", externals[i].prefix, externals[i].subtree)
-			askConfirmation("Please perform manually the merge between integration and master from %s, then " % (externals[i].subtree))
+			diffs = callCommand("git diff --compact-summary %s/integration %s/master" % (externals[i].subtree, externals[i].subtree), True, True)
+			if(diffs != ""):
+				print diffs
+				askConfirmation("Please perform manually the merge between integration and master from %s, then " % (externals[i].subtree))
 			# Remove remaining integration branch (if still exists)
 			callCommand("git push %s --delete integration" % (externals[i].subtree))
-			os.system("git branch -d integration")
+			os.system("(cd ../%s; git checkout master; git branch -d integration)" % (externals[i].subtree))
 
 		askConfirmation("Next step is to push your change to SVN repositories...\n" + \
 		"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, ")
