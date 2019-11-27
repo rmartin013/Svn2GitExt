@@ -98,14 +98,13 @@ def getFirstGitRevision():
 	return app.stdout.readlines()[-1].strip()
 
 def createGitSvnSubtree(text):
-	ext_dir = os.path.join(gLocalGitRepoBase, "%s-%s" %(gRootProjectName, ext_name))
-	mkpdir(ext_dir)
+	subtreePath = os.path.join(gLocalGitRepoBase, ext_name)
 
 	# clone in local git repository using git svn
-	callCommand("git svn clone -A %s --preserve-empty-dirs%s %s %s" % (gAuthorsFile, rev_opt, url, ext_dir))
+	callCommand("git svn clone -A %s --preserve-empty-dirs%s %s %s" % (gAuthorsFile, rev_opt, url, subtreePath))
 
 	# Git push to a GIT server remote
-	os.chdir(ext_dir)
+	os.chdir(subtreePath)
 	# http://bitbucket02:7990/rest/api/1.0/projects/CON/repos/
 	clone_url = createGitRemote(ext_name, \
 	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory)
@@ -252,7 +251,7 @@ if __name__ == "__main__":
 		password = getpass.getpass("Password for %s: " % (username))
 
 	if args.command == "create":
-		gRootProjectName = os.path.basename(args.directory)
+		gProjectName = os.path.basename(args.directory)
 		gLocalGitRepoBase = os.path.dirname(args.directory)
 		ext_dir = args.directory
 		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
@@ -263,21 +262,21 @@ if __name__ == "__main__":
 		os.chdir(ext_dir)
 		callCommand("git init")
 		with open("README", 'w') as readme:
-			readme.write(gGitDirectoryPresentation + gRootProjectName + '\n')
+			readme.write(gGitDirectoryPresentation + gProjectName + '\n')
 			readme.write('In this repository, the main SVN project "%s" is cloned in the git directory "%s". ' % (url, gRootRepositoryName))
 			readme.write('Inside of it, there is a git subtree (check for the online definition)' + \
 			' for each original svn:external definition of the main project.\n' + \
 			'Here is the list of git subtree associations:\n')
 		callCommand("git add README") 
-		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (gRootProjectName, url))
+		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (gProjectName, url))
 
 		# clone in local git repository using git svn
-		ext_name = gRootRepositoryName
-		directory = ext_name
+		ext_name = "%s-%s" % (gProjectName, gRootRepositoryName)
+		directory = gRootRepositoryName
 		rev_opt = ""
 		createGitSvnSubtree("SVN root directory")
 
-		clone_url = createGitRemote(gRootProjectName, 'Main GIT project for ' + gRootProjectName + ', should mirror (svn - ' + url + ')')
+		clone_url = createGitRemote(gProjectName, 'Main GIT project for ' + gProjectName + ', should mirror (svn - ' + url + ')')
 		callCommand("git remote add origin " + clone_url)
 
 		# Create git subtree projects
@@ -290,7 +289,7 @@ if __name__ == "__main__":
 			else:
 				rev_opt = " -rBASE:%s" % (external.revision)
 			directory = external.directory
-			ext_name = "ext-%02d-%s" % (i, os.path.basename(directory))
+			ext_name = "%s-ext-%02d-%s" % (gProjectName, i, os.path.basename(directory))
 			url = external.url
 			createGitSvnSubtree("svn:externals")
 
@@ -331,7 +330,7 @@ if __name__ == "__main__":
 		print(externals)
 		
 		for i in range(len(externals)):
-			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i].subtree))
+			os.chdir(os.path.join(args.directory, "../" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
 			if "Current branch master is up to date." in callCommand("git svn rebase -A %s" % (gAuthorsFile), True, True):
 				externals[i].svnUptodate = True
@@ -359,7 +358,7 @@ if __name__ == "__main__":
 		askConfirmation("Next step is to push your change to SVN repositories...\n" + \
 		"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, ")
 		for i in range(len(externals)):
-			os.chdir(os.path.join(args.directory, "../" + ProjectName + "-" + externals[i].subtree))
+			os.chdir(os.path.join(args.directory, "../" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
 			callCommand("git checkout master")
 			callCommand("git pull")
