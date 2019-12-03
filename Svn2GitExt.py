@@ -2,7 +2,9 @@
 # coding: utf-8
 
 # depends on packages:
-# git, subversion, git-svn, jq, curl
+# git, subversion, git-svn, jq, curl, python-pip
+#
+# pip install termcolor
 
 import os
 import sys
@@ -14,6 +16,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 import getpass
 import shlex
+from termcolor import colored
 
 try:
 	import credentials
@@ -28,11 +31,15 @@ gRootRepositoryName="root"
 gAuthorsFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "authors.txt")
 
 def pause():
-	print "Press [Enter] key to continue..."
+	print colored("Press [Enter] key to continue...", 'green')
 	key = sys.stdin.read(1)
 
+def changeDir(directory):
+	print colored("cd %s" % (directory), 'green')
+	os.chdir(directory)
+
 def askConfirmation(text):
-	print "%s press [Y] followed [Enter] key to continue..." % (text)
+	print colored("%s press [Y] followed [Enter] key to continue..." % (text), 'green')
 	key = "0"
 	while key != "Y" and key != "y":
 		key = sys.stdin.read(1)
@@ -57,7 +64,7 @@ class SvnInfo:
 
 def traceFn(cmd):
 	print "==================="
-	print cmd
+	print colored(cmd, 'blue')
 	print "==================="
 
 def callCommand(cmd, trace = True, ret = False):
@@ -65,15 +72,17 @@ def callCommand(cmd, trace = True, ret = False):
 		traceFn(cmd)
 	if ret == True:
 		try:
-			return subprocess.check_output(shlex.split(cmd))
+			result = subprocess.check_output(shlex.split(cmd))
+			print result
+			return result
 		except subprocess.CalledProcessError, e:
-			print "Error %d happenned in %s, press [Enter] key to continue..." % (e.returncode, os.getcwd())
+			print colored("Error %d happenned in %s, press [Enter] key to continue..." % (e.returncode, os.getcwd()), 'red')
 			sys.stdin.read(1)
 			return e.output
 	else:
 		error = os.system(cmd)
 		if error != 0:
-			print "Error %d happenned in %s, press [Enter] key to continue..." % (error, os.getcwd())
+			print colored("Error %d happenned in %s, press [Enter] key to continue..." % (error, os.getcwd()), 'red')
 			sys.stdin.read(1)
 
 def gitSubtreeCmd(cmd, prefix, subtree):
@@ -312,11 +321,13 @@ if __name__ == "__main__":
 		try:
 			readme = os.path.join(args.directory, "README")
 		except:
-			print "You must provide a valid GIT --directory option: [%s]" % (args.directory)
+			print colored("You must provide a valid GIT --directory option: [%s]" % (args.directory), 'red')
+			sys.exit(1)
 		try:
 			f = open(readme, 'r')
 		except:
-			print "Unable to open %s" %(readme)
+			print colored("Unable to open %s" %(readme), 'red')
+			sys.exit(1)
 		os.chdir(args.directory)
 		print "\n-> Working in %s" % (os.getcwd())
 		callCommand("git checkout master")
@@ -388,4 +399,4 @@ if __name__ == "__main__":
 		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
 		purgeBitbucketProject()
 	else:
-		print("Unknown command")
+		print colored("Unknown command", 'red')
