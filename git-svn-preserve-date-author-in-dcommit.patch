@@ -1,5 +1,6 @@
 # Patch adapted from https://stackoverflow.com/a/36647984/12814490
-# Currently on git-svn v2.17.1
+# Tested on git-svn v2.17.1
+# patch /usr/lib/git-core/git-svn git-svn-preserve-date-author-in-dcommit.patch
 --- /usr/lib/git-core/git-svn.old	2020-01-28 18:48:56.729362630 +0100
 +++ /usr/lib/git-core/git-svn	2020-01-30 16:08:24.240207858 +0100
 @@ -17,6 +17,7 @@
