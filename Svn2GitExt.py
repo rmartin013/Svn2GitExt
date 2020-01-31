@@ -386,14 +386,22 @@ if __name__ == "__main__":
 			callCommand("git push %s --delete integration" % (externals[i].subtree))
 			os.system("(cd ../%s; git checkout master; git branch -d integration)" % (externals[i].subtree))
 
-		askConfirmation("Next step is to push your change to SVN repositories...\n" + \
-		"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, ")
-		for i in range(len(externals)):
-			os.chdir(os.path.join(args.directory, "../" + externals[i].subtree))
-			print "\n-> Working in %s" % (os.getcwd())
-			callCommand("git checkout master")
-			callCommand("git pull")
-			callCommand("git svn dcommit -A %s" % (gAuthorsFile))
+		for j in [0, 1]:
+			if j == 0:
+				step = "--dry-run"
+				opt = step
+			else:
+				step = "for real!"
+				opt = ""
+			askConfirmation("Next step is to push your change to SVN repositories (%s)...\n" + \
+			"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, " \
+			% (step))
+			for i in range(len(externals)):
+				os.chdir(os.path.join(args.directory, "../" + externals[i].subtree))
+				print "\n-> Working in %s" % (os.getcwd())
+				callCommand("git checkout master")
+				callCommand("git pull")
+				callCommand("git svn dcommit -A %s %s" % (gAuthorsFile, opt))
 
 	elif args.command == "purge":
 		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
