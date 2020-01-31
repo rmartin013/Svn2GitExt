@@ -1,0 +1,109 @@
+# Patch adapted from https://stackoverflow.com/a/36647984/12814490
+# Currently on git-svn v2.17.1
+--- /usr/lib/git-core/git-svn.old	2020-01-28 18:48:56.729362630 +0100
++++ /usr/lib/git-core/git-svn	2020-01-30 16:08:24.240207858 +0100
+@@ -17,6 +17,7 @@
+ use File::Spec;
+ use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
+ use Memoize;
++use POSIX qw/strftime/;
+ 
+ use Git::SVN;
+ use Git::SVN::Editor;
+@@ -969,6 +970,17 @@
+ 			}
+ 		}
+ 	}
++	
++	#Revert the keys/values from authors into a reverse map.
++	#If a duplicate is found(i.e. 2 git users matching 1 svn user) abort the operation.
++	my %rev_author_map;
++	while (my ($key, @value) = each %users) {
++		my $rev_key="$value[0][0] <$value[0][1]>";
++		if(exists $rev_author_map{$rev_key}) {
++			fatal "Found a duplicate GIT author($rev_key) in the authorsfile. Aborting dcommit!"
++		}
++		$rev_author_map{$rev_key}=$key
++	}
+ 
+ 	my $rewritten_parent;
+ 	my $current_head = command_oneline(qw/rev-parse HEAD/);
+@@ -985,6 +997,20 @@
+ 				      "from commit $d~1";
+ 			}
+ 		}
++		my $commit_entry = get_commit_entry($d);
++		my $cmt_author = $commit_entry->{author};
++		my $cmt_date = $commit_entry->{date};
++		my $formatted_cmt_date = Git::SVN::Log::format_svn_date($cmt_date);
++		print "GIT DATE: $formatted_cmt_date; \n";
++		print "GIT AUTHOR: $cmt_author; \n";
++		if(defined $cmt_author) {
++			my $svn_author = $rev_author_map{$cmt_author};
++			#Here we check if the git commit author matches an author in the authorsfile
++			if ((not (defined $svn_author)) || $svn_author eq "") {
++				fatal "The git author: $cmt_author was not found in the authors file. Make sure you have commited as a user listed in the authors file. Note:matching is case sensitive.";
++			}
++			print "SVN AUTHOR: $svn_author\n";
++		}
+ 		if ($_dry_run) {
+ 			print "diff-tree $d~1 $d\n";
+ 		} else {
+@@ -996,10 +1022,11 @@
+ 				                             $linear_refs,
+ 				                             $rewritten_parent);
+ 			}
+-
++			
++			my $ra = Git::SVN::Ra->new($url);
+ 			my %ed_opts = ( r => $last_rev,
+-			                log => get_commit_entry($d)->{log},
+-			                ra => Git::SVN::Ra->new($url),
++			                log => $commit_entry->{log},
++			                ra => $ra,
+ 			                config => SVN::Core::config_get_config(
+ 			                        $Git::SVN::Ra::config_dir
+ 			                ),
+@@ -1025,6 +1052,20 @@
+ 				$gs->{inject_parents_dcommit}->{$cmt_rev} =
+ 				                               $parents->{$d};
+ 			}
++			
++			#Here we coerce SVN into accepting the correct user according to the reverse mapping.
++			if(defined $cmt_author) {
++				my $svn_author = $rev_author_map{$cmt_author};
++				print "SVN AUTHOR: $svn_author\n";
++				$ra->change_rev_prop($cmt_rev, 'svn:author', $svn_author)
++			}
++			#Here we coerce SVN into accepting the commit date from Git.
++			if ( defined $cmt_date ) {
++				$cmt_date = strftime("%Y-%m-%dT%H:%M:%S.000000Z", gmtime($cmt_date));
++				print "SVN DATE SET TO: $cmt_date\n";
++				$ra->change_rev_prop($cmt_rev, 'svn:date', $cmt_date);
++			}
++			
+ 			$_fetch_all ? $gs->fetch_all : $gs->fetch;
+ 			$SVN::Error::handler = $err_handler;
+ 			$last_rev = $cmt_rev;
+@@ -1842,7 +1883,7 @@
+ 
+ sub get_commit_entry {
+ 	my ($treeish) = shift;
+-	my %log_entry = ( log => '', tree => get_tree_from_treeish($treeish) );
++	my %log_entry = ( log => '', tree => get_tree_from_treeish($treeish), author =>undef, date => undef );
+ 	my @git_path = qw(rev-parse --git-path);
+ 	my $commit_editmsg = command_oneline(@git_path, 'COMMIT_EDITMSG');
+ 	my $commit_msg = command_oneline(@git_path, 'COMMIT_MSG');
+@@ -1859,7 +1900,11 @@
+ 		while (<$msg_fh>) {
+ 			if (!$in_msg) {
+ 				$in_msg = 1 if (/^$/);
+-				$author = $1 if (/^author (.*>)/);
++				if (/^author (.*>) (\d+) ([\-\+]?\d+)$/o) {
++					$author = $1;
++					$log_entry{author} = $1;
++					$log_entry{date} = $2;
++				}
+ 			} elsif (/^git-svn-id: /) {
+ 				# skip this for now, we regenerate the
+ 				# correct one on re-fetch anyways
