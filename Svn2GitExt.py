@@ -117,7 +117,7 @@ def createGitSvnSubtree(text):
 	callCommand("git svn clone -A %s --preserve-empty-dirs%s %s %s" % (gAuthorsFile, rev_opt, url, subtreePath))
 
 	# Git push to a GIT server remote
-	os.chdir(subtreePath)
+	changeDir(subtreePath)
 	# http://bitbucket02:7990/rest/api/1.0/projects/CON/repos/
 	clone_url = createGitRemote(ext_name, \
 	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory)
@@ -126,7 +126,7 @@ def createGitSvnSubtree(text):
 	callCommand("git push -u origin --all")
 
 	# Add git-subtree link in global project
-	os.chdir(args.directory)
+	changeDir(args.directory)
 	callCommand("git remote add %s %s" % (ext_name, clone_url))
 	createSubtreeCmd = 'git subtree add --prefix=%s %s master' % (directory, ext_name)
 	traceFn(createSubtreeCmd)
@@ -277,7 +277,7 @@ if __name__ == "__main__":
 		SvnUrls=SvnInfo(args.svn)
 		url=SvnUrls.ProjectUrl
 		mkpdir(ext_dir)
-		os.chdir(ext_dir)
+		changeDir(ext_dir)
 		callCommand("git init")
 		with open("README", 'w') as readme:
 			readme.write(gGitDirectoryPresentation + gProjectName + '\n\n')
@@ -328,10 +328,12 @@ if __name__ == "__main__":
 		except:
 			print colored("Unable to open %s" %(readme), 'red')
 			sys.exit(1)
-		os.chdir(args.directory)
+		changeDir(args.directory)
 		print "\n-> Working in %s" % (os.getcwd())
 		callCommand("git checkout master")
 		callCommand("git pull")
+		
+		# First build a sorted list of externals
 		externals = []
 		line = f.readline()
 		if line:
@@ -345,17 +347,19 @@ if __name__ == "__main__":
 					sub.prefix = line.split(' ')[2]
 					sub.subtree = line.split(' ')[4]
 					if '-rBASE:' in line:
-						print "Found subtree %s related at %s to svn:external with fixed revision -> discard it for update" % (sub.subtree, sub.prefix)
+						end = " with fixed revision -> discard it for update"
 					else:
 						externals.append(sub)
-						print "Found subtree %s related at %s to svn:external" % (sub.subtree, sub.prefix)
+						end = ""
+					print "Found subtree %s related at %s to svn:external%s" % (sub.subtree, sub.prefix, end)
 				line = f.readline()
 		f.close()
 		externals.sort(key=lambda GitSubtree: GitSubtree.prefix)
 		print(externals)
-		
+
+		# Then for each of them, check if there is an update from SVN side
 		for i in range(len(externals)):
-			os.chdir(os.path.join(args.directory, "../" + externals[i].subtree))
+			changeDir(os.path.join(args.directory, "../" + externals[i].subtree))
 			print "\n-> Working in %s" % (os.getcwd())
 			if "Current branch master is up to date." in callCommand("git svn rebase -A %s" % (gAuthorsFile), True, True):
 				externals[i].svnUptodate = True
@@ -365,18 +369,22 @@ if __name__ == "__main__":
 		os.chdir(args.directory)
 		print "\n-> Working in %s" % (os.getcwd())
 		pause()
-		
+
+		# Now reflect changes via git subtrees on main project from updated externals
 		for i in range(len(externals)):
 			if externals[i].svnUptodate == True:
-				print "Skip git subtree pull on prefix %s / subtree %s as it was detected uptodate from SVN side" % (externals[i].prefix, externals[i].subtree)
+				print "Skip git subtree pull on prefix %s / subtree %s" % (externals[i].prefix, externals[i].subtree) + \
+				" as it was detected uptodate from SVN side"
 			else:
 				gitSubtreeCmd("pull", externals[i].prefix, externals[i].subtree)
 		callCommand("git push")
 
+		# Begin GIT -> SVN update via pushing changes on subtrees to externals projects
 		for i in range(len(externals)):
 			# Default: Always skip the root subtree except if asked by option --root
 			if externals[i].prefix == gRootRepositoryName and not args.root:
 				continue
+			changeDir(args.directory)
 			gitSubtreeCmd("push", externals[i].prefix, externals[i].subtree)
 			diffs = callCommand("git diff --compact-summary %s/integration %s/master" % (externals[i].subtree, externals[i].subtree), True, True)
 			if(diffs != ""):
@@ -386,6 +394,8 @@ if __name__ == "__main__":
 			callCommand("git push %s --delete integration" % (externals[i].subtree))
 			os.system("(cd ../%s; git checkout master; git branch -d integration)" % (externals[i].subtree))
 
+		# Convert GIT logs to SVN ones via git svn in 2 passes (dry-run for ultimate check, 
+		# then the real thing). If git-svn is correctly patched, it should correct every svn commit date & author
 		for j in [0, 1]:
 			if j == 0:
 				step = "--dry-run"
@@ -393,11 +403,11 @@ if __name__ == "__main__":
 			else:
 				step = "for real!"
 				opt = ""
-			askConfirmation("Next step is to push your change to SVN repositories (%s)...\n" + \
-			"It's good time to check everything is good before doing the synchronisation.\nWhen you are sure, " \
-			% (step))
+			askConfirmation("Next step is to push your change to SVN repositories (%s)...\n" % (step) + \
+			"It's good time to check everything is good before doing the synchronisation.\n" + \
+			"When you are sure,")
 			for i in range(len(externals)):
-				os.chdir(os.path.join(args.directory, "../" + externals[i].subtree))
+				changeDir(os.path.join(args.directory, "../" + externals[i].subtree))
 				print "\n-> Working in %s" % (os.getcwd())
 				callCommand("git checkout master")
 				callCommand("git pull")
