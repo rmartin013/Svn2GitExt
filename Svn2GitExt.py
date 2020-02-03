@@ -363,10 +363,11 @@ if __name__ == "__main__":
 			print "\n-> Working in %s" % (os.getcwd())
 			if "Current branch master is up to date." in callCommand("git svn rebase -A %s" % (gAuthorsFile), True, True):
 				externals[i].svnUptodate = True
-			callCommand("git pull")
-			callCommand("git push")
-			
-		os.chdir(args.directory)
+			else:
+				callCommand("git pull")
+				callCommand("git push")
+
+		changeDir(args.directory)
 		print "\n-> Working in %s" % (os.getcwd())
 		pause()
 
@@ -386,13 +387,24 @@ if __name__ == "__main__":
 				continue
 			changeDir(args.directory)
 			gitSubtreeCmd("push", externals[i].prefix, externals[i].subtree)
-			diffs = callCommand("git diff --compact-summary %s/integration %s/master" % (externals[i].subtree, externals[i].subtree), True, True)
+			changeDir(os.path.join(args.directory, "../" + externals[i].subtree))
+			callCommand("git fetch origin")
+			callCommand("git checkout integration")
+			callCommand("git rebase origin/master")
+			callCommand("git checkout master")
+			callCommand("git merge")
+			diffs = callCommand("git diff --compact-summary integration master", True, True)
 			if(diffs != ""):
 				print diffs
-				askConfirmation("Please perform manually the merge between integration and master from %s, then " % (externals[i].subtree))
-			# Remove remaining integration branch (if still exists)
-			callCommand("git push %s --delete integration" % (externals[i].subtree))
-			os.system("(cd ../%s; git checkout master; git branch -d integration)" % (externals[i].subtree))
+				callCommand("git log --left-right integration...master")
+				askConfirmation("\nPlease check the logs above. If you see anything suspect, perform manually " + \
+				"the merge between integration and master from %s\nOtherwise just" % (os.getcwd()))
+				# If we continue, it is either we can merge or it has already been done manually
+				callCommand("git checkout master")
+				callCommand("git merge integration")
+				callCommand("git push")
+				callCommand("git push origin --delete integration")
+				callCommand("git branch -D integration")
 
 		# Convert GIT logs to SVN ones via git svn in 2 passes (dry-run for ultimate check, 
 		# then the real thing). If git-svn is correctly patched, it should correct every svn commit date & author
@@ -412,6 +424,19 @@ if __name__ == "__main__":
 				callCommand("git checkout master")
 				callCommand("git pull")
 				callCommand("git svn dcommit -A %s %s" % (gAuthorsFile, opt))
+
+		# Unfortunately, git-svn will rebase the external logs, thus we need to re-create from there
+		# subtrees for updated externals
+		for i in range(len(externals)):
+			changeDir(os.path.join(args.directory, "../" + externals[i].subtree))
+			callCommand("git fetch origin")
+			if("Your branch and 'origin/master' have diverged" in callCommand("git status --ahead-behind", True, True)):
+				callCommand("git push -f")
+				changeDir(args.directory)
+				callCommand("git rm -r %s" % (externals[i].prefix))
+				callCommand("git commit -m 'Preparing to re-create [%s] subtree (delete old one)'" % (externals[i].prefix))
+				callCommand("git subtree add --prefix=%s %s master" % (externals[i].prefix, externals[i].subtree))
+		callCommand("git push")
 
 	elif args.command == "purge":
 		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
