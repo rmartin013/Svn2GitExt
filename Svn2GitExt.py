@@ -28,7 +28,10 @@ except:
 
 gGitDirectoryPresentation = "Root GIT repository of project "
 gRootRepositoryName="root"
+
 gAuthorsFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "authors.txt")
+if os.path.exists(gAuthorsFile) == False:
+	gAuthorsFile = None
 
 def pause():
 	print colored("Press [Enter] key to continue...", 'green')
@@ -121,7 +124,7 @@ def createGitSvnSubtree(text):
 	# http://bitbucket02:7990/rest/api/1.0/projects/CON/repos/
 	clone_url = createGitRemote(ext_name, \
 	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory)
-	
+
 	callCommand("git remote add origin " + clone_url)
 	callCommand("git push -u origin --all")
 
@@ -189,7 +192,7 @@ def completeSvnExtDirectory(target, ext):
 
 	# Append again Root repository name
 	complete = os.path.join(gRootRepositoryName, complete)
-	
+
 	# Special check for ModuleEncrypt.py (svn externals directly on a file)
 	if os.path.isfile(os.path.join(target, ext.directory)):
 		complete = os.path.dirname(complete)
@@ -218,7 +221,7 @@ def getSvnExternal(target, externals):
 		if Ext.url is not None:
 			completeSvnExtDirectory(target, Ext)
 			externals.append(Ext)
-			
+
 def createGitRemote(name, description):
 	dir_option = '\'{"name": "' + name + '", "scm": "git", "is_private": "false", "fork_policy": "no_public_forks", "description": "' + \
 		description + '"}\''
@@ -253,7 +256,10 @@ if __name__ == "__main__":
 	parser.add_argument('-u','--username', help='Git repository username')
 	parser.add_argument('-p','--password', help='Git repository password for [username]')
 	parser.add_argument('-r','--root', action="store_true", help='Update root subtree, default is no (only for update)')
+	parser.add_argument('-a','--authors', help='Path to a git-svn author file / Mandatory for create & update')
 	args = parser.parse_args()
+
+	# ------ Parse generic arguments ------
 
 	# If user passed credentials by arguments, overwrite file credentials if exist
 	if args.username:
@@ -266,6 +272,16 @@ if __name__ == "__main__":
 		username = raw_input("Git Username: ")
 	if password is None:
 		password = getpass.getpass("Password for %s: " % (username))
+
+	if args.command != "purge":
+		if args.authors:
+			gAuthorsFile = args.authors
+		if gAuthorsFile is None:
+			print colored("You must provide an authors file for this operation.", 'red')
+			sys.exit(1)
+		if os.path.exists(gAuthorsFile) == False:
+			print colored("Unable to open %s" %(gAuthorsFile), 'red')
+			sys.exit(1)
 
 	if args.command == "create":
 		gProjectName = os.path.basename(args.directory)
@@ -285,7 +301,7 @@ if __name__ == "__main__":
 			readme.write('Inside of it, there is a git subtree (check for the online definition)' + \
 			' for each original svn:external definition of the main project.\n' + \
 			'Here is the list of git subtree associations:\n')
-		callCommand("git add README") 
+		callCommand("git add README")
 		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (gProjectName, url))
 
 		# clone in local git repository using git svn
@@ -332,7 +348,7 @@ if __name__ == "__main__":
 		print "\n-> Working in %s" % (os.getcwd())
 		callCommand("git checkout master")
 		callCommand("git pull")
-		
+
 		# First build a sorted list of externals
 		externals = []
 		line = f.readline()
@@ -406,7 +422,7 @@ if __name__ == "__main__":
 				callCommand("git push origin --delete integration")
 				callCommand("git branch -D integration")
 
-		# Convert GIT logs to SVN ones via git svn in 2 passes (dry-run for ultimate check, 
+		# Convert GIT logs to SVN ones via git svn in 2 passes (dry-run for ultimate check,
 		# then the real thing). If git-svn is correctly patched, it should correct every svn commit date & author
 		for j in [0, 1]:
 			if j == 0:
