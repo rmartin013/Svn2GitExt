@@ -283,11 +283,29 @@ if __name__ == "__main__":
 			print colored("Unable to open %s" %(gAuthorsFile), 'red')
 			sys.exit(1)
 
+	if args.command != "update":
+		if args.bitbucket is None:
+			print colored("You must provide a BitBucket URL related to the project where you want to store your GIT repositories", 'red')
+			sys.exit(1)
+		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
+
 	if args.command == "create":
+		if args.directory is None:
+			print colored("You must provide the local path where you want to build the GIT projects.", 'red')
+			sys.exit(1)
+		if !os.path.exists(args.directory):
+			print colored("Unable to open %s" %(readme), 'red')
+			sys.exit(1)
+		if args.svn is None:
+			print colored("You must provide a Subversion working directory to clone it to GIT repositories.", 'red')
+			sys.exit(1)
+		if !os.path.exists(args.svn):
+			print colored("Unable to open %s" %(readme), 'red')
+			sys.exit(1)
+
 		gProjectName = os.path.basename(args.directory)
 		gLocalGitRepoBase = os.path.dirname(args.directory)
 		ext_dir = args.directory
-		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
 
 		# Create parent project
 		SvnUrls=SvnInfo(args.svn)
@@ -455,7 +473,6 @@ if __name__ == "__main__":
 		callCommand("git push")
 
 	elif args.command == "purge":
-		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
 		purgeBitbucketProject()
 	else:
 		print colored("Unknown command", 'red')
