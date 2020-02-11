@@ -98,6 +98,11 @@ def gitSubtreeCmd(cmd, prefix, subtree):
 		direction = "from"
 	return callCommand("git subtree %s --prefix=%s %s %s -m '%s changes %s SVN repo on (%s)'" % (cmd, prefix, subtree, branch, cmd, direction, now.strftime("%d/%m/%Y %H:%M:%S")), True, True)
 
+def checkBitbucketProjectUrl(url):
+	with tempfile.NamedTemporaryFile() as fp:
+		os.system("curl -s -X GET -u '%s':'%s' %s > %s" % (username, password, url, fp.name))
+		return subprocess.check_output(["jq", "-r", '.key', fp.name]).strip()
+
 def getBitbucketCloneUrl(name):
 	with tempfile.NamedTemporaryFile() as fp:
 		callCommand("curl -s -X GET -u '%s':'%s' %s/%s > %s" % (username, password, gRemoteGitServerUrl, name, fp.name), False)
@@ -244,7 +249,7 @@ def getSvnExternalsList():
 def getGitRestApi(gitUrl):
 	from urlparse import urlparse as urlp
 	parsed = urlp(gitUrl.strip('/'))
-	return parsed.scheme + '://' + parsed.netloc + '/rest/api/1.0' + parsed.path + '/repos'
+	return [parsed.scheme + '://' + parsed.netloc + '/rest/api/1.0' + parsed.path, os.path.basename(parsed.path)]
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Bi-directionnal utility for synchronising SVN archived project using many svn:externals links with GIT repository using other repositories with git subtree')
@@ -287,20 +292,24 @@ if __name__ == "__main__":
 		if args.bitbucket is None:
 			print colored("You must provide a BitBucket URL related to the project where you want to store your GIT repositories", 'red')
 			sys.exit(1)
-		gRemoteGitServerUrl = getGitRestApi(args.bitbucket)
+		[bbProjectRestUrl, bbProjectKey] = getGitRestApi(args.bitbucket)
+		gRemoteGitServerUrl = bbProjectRestUrl + '/repos'
+		if checkBitbucketProjectUrl(bbProjectRestUrl) != bbProjectKey:
+			print colored("Unable to access %s project using %s/%s" % (bbProjectKey, username, password), 'red')
+			sys.exit(1)
 
 	if args.command == "create":
 		if args.directory is None:
 			print colored("You must provide the local path where you want to build the GIT projects.", 'red')
 			sys.exit(1)
-		if !os.path.exists(args.directory):
-			print colored("Unable to open %s" %(readme), 'red')
+		if os.path.exists(args.directory) == False:
+			print colored("Unable to open %s" %(args.directory), 'red')
 			sys.exit(1)
 		if args.svn is None:
 			print colored("You must provide a Subversion working directory to clone it to GIT repositories.", 'red')
 			sys.exit(1)
-		if !os.path.exists(args.svn):
-			print colored("Unable to open %s" %(readme), 'red')
+		if os.path.exists(args.svn) == False:
+			print colored("Unable to open %s" %(args.svn), 'red')
 			sys.exit(1)
 
 		gProjectName = os.path.basename(args.directory)
