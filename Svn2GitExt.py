@@ -107,11 +107,15 @@ def getBitbucketCloneUrl(name):
 		callCommand("curl -s -X GET -u '%s':'%s' %s/%s > %s" % (username, password, gRemoteGitServerUrl, name, fp.name), False)
 		return subprocess.check_output(["jq", "-r", '.links | .clone[] | select(.name=="ssh") | .href', fp.name]).strip()
 
-def purgeBitbucketProject():
+def purgeBitbucketProject(pattern):
 	with tempfile.NamedTemporaryFile() as fp:
 		callCommand("curl -s -X GET -u '%s':'%s' %s > %s" % (username, password, gRemoteGitServerUrl, fp.name), False)
 		for repo in subprocess.check_output(["jq", "-r", '.values[] | .slug', fp.name]).strip().split('\n'):
-			callCommand("curl -v -X DELETE -u '%s':'%s' %s/%s" %(username, password, gRemoteGitServerUrl, repo), False)
+			if pattern is None or repo.startswith(pattern):
+				if args.iterative:
+					askConfirmation("Are you sure you want to delete %s repository?" % (repo))
+				callCommand("curl -v -X DELETE -u '%s':'%s' %s/%s" %(username, password, gRemoteGitServerUrl, repo), False)
+				print colored("\nDeleted %s succesfully" % (repo), 'blue')
 
 def getFirstGitRevision():
 	app = subprocess.Popen(["git", "rev-list", "--max-parents=0", "HEAD"], stdout = subprocess.PIPE, universal_newlines = True)
@@ -258,11 +262,12 @@ if __name__ == "__main__":
 	parser.add_argument('-d','--directory', help='Absolute path to the local GIT directory / Mandatory for create & update')
 	parser.add_argument('-s','--svn', help='Path to the local SVN directory / Mandatory for create')
 	parser.add_argument('-b','--bitbucket', help='Bitbucket (GIT) project URL / Mandatory for create & purge')
-	parser.add_argument('-i','--iterative', help='Pause after each critical operation (only for create)')
+	parser.add_argument('-i','--iterative', help='Pause after each critical operation (only for create & purge)')
 	parser.add_argument('-u','--username', help='Git repository username')
 	parser.add_argument('-p','--password', help='Git repository password for [username]')
 	parser.add_argument('-r','--root', action="store_true", help='Update root subtree, default is no (only for update)')
 	parser.add_argument('-a','--authors', help='Path to a git-svn author file / Mandatory for create & update')
+	parser.add_argument('-f','--filter', help='filter pattern for purge command: delete only repos whose name starts with that pattern')
 	args = parser.parse_args()
 
 	# ------ Parse generic arguments ------
@@ -483,6 +488,6 @@ if __name__ == "__main__":
 		callCommand("git push")
 
 	elif args.command == "purge":
-		purgeBitbucketProject()
+		purgeBitbucketProject(args.filter)
 	else:
 		print colored("Unknown command", 'red')
