@@ -254,7 +254,7 @@ def getGitRestApi(gitUrl):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Bi-directionnal utility for synchronising SVN archived project using many svn:externals links with GIT repository using other repositories with git subtree')
 	parser.add_argument('command', choices=["create","update","purge"], help='Command among "create", update", "purge"')
-	parser.add_argument('-d','--directory', help='Path to the local GIT directory / Mandatory for create & update')
+	parser.add_argument('-d','--directory', help='Absolute path to the local GIT directory / Mandatory for create & update')
 	parser.add_argument('-s','--svn', help='Path to the local SVN directory / Mandatory for create')
 	parser.add_argument('-b','--bitbucket', help='Bitbucket (GIT) project URL / Mandatory for create & purge')
 	parser.add_argument('-i','--iterative', help='Pause after each critical operation (only for create)')
@@ -287,6 +287,12 @@ if __name__ == "__main__":
 		if os.path.exists(gAuthorsFile) == False:
 			print colored("Unable to open %s" %(gAuthorsFile), 'red')
 			sys.exit(1)
+		if args.directory is None:
+			print colored("You must provide the local path where you want to build the GIT projects.", 'red')
+			sys.exit(1)
+		if os.path.exists(os.path.dirname(args.directory)) == False:
+			print colored("Invalid path %s\nYou must provide an absolute path!" % (args.directory), 'red')
+			sys.exit(1)
 
 	if args.command != "update":
 		if args.bitbucket is None:
@@ -299,12 +305,6 @@ if __name__ == "__main__":
 			sys.exit(1)
 
 	if args.command == "create":
-		if args.directory is None:
-			print colored("You must provide the local path where you want to build the GIT projects.", 'red')
-			sys.exit(1)
-		if os.path.exists(args.directory) == False:
-			print colored("Unable to open %s" %(args.directory), 'red')
-			sys.exit(1)
 		if args.svn is None:
 			print colored("You must provide a Subversion working directory to clone it to GIT repositories.", 'red')
 			sys.exit(1)
