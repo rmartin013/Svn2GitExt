@@ -26,8 +26,7 @@ except:
 	username = None
 	password = None
 
-gGitDirectoryPresentation = "Root GIT repository of project "
-gRootRepositoryName="root"
+gGitDirectoryPresentation = "Main GIT repository of project "
 
 gAuthorsFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "authors.txt")
 if os.path.exists(gAuthorsFile) == False:
@@ -126,30 +125,35 @@ def createGitSvnSubtree(text):
 
 	# Git push to a GIT server remote
 	changeDir(subtreePath)
-	# http://bitbucket02:7990/rest/api/1.0/projects/CON/repos/
-	clone_url = createGitRemote(ext_name, \
-	text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory)
 
-	callCommand("git remote add origin " + clone_url)
-	callCommand("git push -u origin --all")
+	# Append svn:ignore settings to the default git exclude file:
+	callCommand("git svn show-ignore >> .git/info/exclude")
 
-	# Add git-subtree link in global project
-	changeDir(args.directory)
-	callCommand("git remote add %s %s" % (ext_name, clone_url))
-	createSubtreeCmd = 'git subtree add --prefix=%s %s master' % (directory, ext_name)
-	traceFn(createSubtreeCmd)
-	if os.system(createSubtreeCmd) == 256:
-		# This error happens when the subtree creation is impossible because the prefix already exists.
-		# The only effective workaround I know is to do the subtree creation in a branch created before the initial prefix creation, then merge it.
-		callCommand("git checkout -b b-%s %s" % (ext_name, getFirstGitRevision()))
-		callCommand(createSubtreeCmd)
-		callCommand("git checkout master")
-		callCommand('git merge "b-%s" -m "Integrated %s %s as a git subtree at %s"' % (ext_name, text, url, directory))
-		callCommand('git branch -D "b-%s"' % (ext_name))
-	with open("README", 'a') as readme:
-		readme.write(" * %s : %s (svn - %s%s)\n" % (directory, ext_name, url, rev_opt))
-	callCommand('git commit -am "Updated README with git subtree %s association"' % (directory))
-	print "********************************************\n\n"
+	if ext_name != gProjectName:
+		# Git push to a GIT server remote
+		clone_url = createGitRemote(ext_name, \
+		text + ' translation to git subtree for cloning (svn - ' + url + rev_opt + ') into local directory: ' + directory)
+
+		callCommand("git remote add origin " + clone_url)
+		callCommand("git push -u origin --all")
+
+		# Add git-subtree link in global project
+		os.chdir(args.directory)
+		callCommand("git remote add %s %s" % (ext_name, clone_url))
+		createSubtreeCmd = 'git subtree add --prefix=%s %s master' % (directory, ext_name)
+		traceFn(createSubtreeCmd)
+		if os.system(createSubtreeCmd) == 256:
+			# This error happens when the subtree creation is impossible because the prefix already exists.
+			# The only effective workaround I know is to do the subtree creation in a branch created before the initial prefix creation, then merge it.
+			callCommand("git checkout -b b-%s %s" % (ext_name, getFirstGitRevision()))
+			callCommand(createSubtreeCmd)
+			callCommand("git checkout master")
+			callCommand('git merge "b-%s" -m "Integrated %s %s as a git subtree at %s"' % (ext_name, text, url, directory))
+			callCommand('git branch -D "b-%s"' % (ext_name))
+		with open("README", 'a') as readme:
+			readme.write(" * %s : %s (svn - %s%s)\n" % (directory, ext_name, url, rev_opt))
+		callCommand('git commit -am "Updated README with git subtree %s association"' % (directory))
+		print "********************************************\n\n"
 
 	# Pause execution, time to debug...
 	if args.iterative:
@@ -194,9 +198,6 @@ class GitSubtree:
 def completeSvnExtDirectory(target, ext):
 	# Append target path to the directory path
 	complete = os.path.relpath(os.path.join(target, ext.directory), args.svn)
-
-	# Append again Root repository name
-	complete = os.path.join(gRootRepositoryName, complete)
 
 	# Special check for ModuleEncrypt.py (svn externals directly on a file)
 	if os.path.isfile(os.path.join(target, ext.directory)):
@@ -321,21 +322,21 @@ if __name__ == "__main__":
 		url=SvnUrls.ProjectUrl
 		mkpdir(ext_dir)
 		changeDir(ext_dir)
-		callCommand("git init")
-		with open("README", 'w') as readme:
-			readme.write(gGitDirectoryPresentation + gProjectName + '\n\n')
-			readme.write('In this repository, the main SVN project "%s" is cloned in the git directory "%s". ' % (url, gRootRepositoryName))
-			readme.write('Inside of it, there is a git subtree (check for the online definition)' + \
-			' for each original svn:external definition of the main project.\n' + \
-			'Here is the list of git subtree associations:\n')
-		callCommand("git add README")
-		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (gProjectName, url))
 
 		# clone in local git repository using git svn
-		ext_name = "%s-%s" % (gProjectName, gRootRepositoryName)
-		directory = gRootRepositoryName
+		ext_name = gProjectName
+		directory = "."
 		rev_opt = ""
-		createGitSvnSubtree("SVN root directory")
+		createGitSvnSubtree("SVN main directory")
+
+		with open("README", 'w') as readme:
+			readme.write(gGitDirectoryPresentation + gProjectName + '\n\n')
+			readme.write('The main SVN project "%s" is cloned in this repository. ' % (url))
+			readme.write('Inside of it, there is a git subtree (check for the online definition)' + \
+			' for each original svn:external definition of the main project.\n' + \
+			'Here is the list of git subtree associations:\n\n')
+		callCommand("git add README")
+		callCommand("git commit -m 'Created GIT %s project, SVN clone of %s'" % (gProjectName, url))
 
 		clone_url = createGitRemote(gProjectName, 'Main GIT project for ' + gProjectName + ', should mirror (svn - ' + url + ')')
 		callCommand("git remote add origin " + clone_url)
@@ -357,8 +358,8 @@ if __name__ == "__main__":
 		# Push to server
 		callCommand("git push -u origin --all")
 
-		print "Final check, brutal diff from SVN local workdir (must be up to date to be accurate) to local GIT repo"
-		callCommand("diff -r -q -x dl -x '.gitignore' -x '.svn' -x '.git' %s %s" % (os.path.join(args.directory, gRootRepositoryName), args.svn))
+		print colored("Final check, brutal diff from SVN local workdir (must be up to date to be accurate) to local GIT repo", 'green')
+		callCommand("diff -r -q -x dl -x '.gitignore' -x '.svn' -x '.git' %s %s" % (args.directory, args.svn))
 
 	elif args.command == "update":
 		try:
@@ -478,7 +479,7 @@ if __name__ == "__main__":
 				changeDir(args.directory)
 				callCommand("git rm -r %s" % (externals[i].prefix))
 				callCommand("git commit -m 'Preparing to re-create [%s] subtree (delete old one)'" % (externals[i].prefix))
-				callCommand("git subtree add --prefix=%s %s master" % (externals[i].prefix, externals[i].subtree))
+				callCommand("git subtree add --prefix=%s --squash %s master" % (externals[i].prefix, externals[i].subtree))
 		callCommand("git push")
 
 	elif args.command == "purge":
