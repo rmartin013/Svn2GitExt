@@ -28,6 +28,7 @@ except:
 
 gGitDirectoryPresentation = "Main GIT repository of project "
 
+gScriptDir = os.getcwd()
 gAuthorsFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "authors.txt")
 if os.path.exists(gAuthorsFile) == False:
 	gAuthorsFile = None
@@ -241,6 +242,8 @@ def createGitRemote(name, description):
 	return getBitbucketCloneUrl(name)
 
 def getSvnExternalsList():
+	# Move to script dir in order to manage relative paths
+	os.chdir(gScriptDir)
 	target_list = getSvnExternalsTargetList(args.svn)
 	externals = []
 	if type(target_list) is list:
@@ -364,6 +367,7 @@ if __name__ == "__main__":
 		callCommand("git push -u origin --all")
 
 		print colored("Final check, brutal diff from SVN local workdir (must be up to date to be accurate) to local GIT repo", 'green')
+		os.chdir(gScriptDir)
 		callCommand("diff -r -q -x dl -x '.gitignore' -x '.svn' -x '.git' %s %s" % (args.directory, args.svn))
 
 	elif args.command == "update":
